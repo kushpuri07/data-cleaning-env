@@ -1,0 +1,67 @@
+name: data-cleaning-env
+version: 1.0.0
+description: >
+  An OpenEnv-compliant reinforcement learning environment where AI agents
+  learn to clean messy real-world datasets. Tasks cover null imputation,
+  deduplication, string normalization, outlier removal, foreign key repair,
+  and encoding fixes.
+
+author: hackathon-submission
+tags:
+  - openenv
+  - data-cleaning
+  - reinforcement-learning
+  - real-world
+
+tasks:
+  - id: task_easy
+    name: Fix Nulls and Data Types
+    difficulty: easy
+    max_steps: 20
+
+  - id: task_medium
+    name: Deduplicate and Normalize Strings
+    difficulty: medium
+    max_steps: 30
+
+  - id: task_hard
+    name: Fix FK Violations, Outliers, and Encoding
+    difficulty: hard
+    max_steps: 50
+
+action_types:
+  - fill_null
+  - drop_duplicates
+  - fix_dtype
+  - normalize_str
+  - drop_outliers
+  - fix_foreign_key
+  - fix_encoding
+  - done
+
+endpoints:
+  reset:    POST /reset
+  step:     POST /step
+  state:    GET  /state
+  tasks:    GET  /tasks
+  grader:   GET  /grader
+  baseline: GET  /baseline
+  health:   GET  /health
+
+reward:
+  min: -1.0
+  max: 1.0
+  partial_credit: true
+
+observation_space:
+  type: structured
+  fields:
+    - task_id
+    - step_number
+    - total_rows
+    - total_columns
+    - columns
+    - null_count
+    - duplicate_count
+    - quality_score
+    - issues
