@@ -153,7 +153,7 @@ def baseline():
     Reads OPENAI_API_KEY from environment variables.
     """
     try:
-        from baseline import run_baseline
+        from inference import run_baseline
         result = run_baseline()
         return result
     except ImportError:
