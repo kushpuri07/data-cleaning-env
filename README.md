@@ -1,7 +1,7 @@
 ---
 title: Data Cleaning OpenEnv
 colorFrom: blue
-colorTo: teal
+colorTo: green
 sdk: docker
 pinned: false
 tags:
