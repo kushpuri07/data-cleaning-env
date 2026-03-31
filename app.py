@@ -45,7 +45,9 @@ def health():
 
 #reset
 @app.post("/reset", response_model=Observation)
-def reset(req: ResetRequest = ResetRequest()):
+def reset(req: Optional[ResetRequest] = None):
+    if req is None:
+        req = ResetRequest()
     """
     Start a new episode.
     Returns the initial observation (dirty dataset summary).
