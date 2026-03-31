@@ -32,7 +32,7 @@ _initial_df_store: Dict[str, Any] = {}
 #Request bodies
 
 class ResetRequest(BaseModel):
-    task_id: str = "task_easy"
+    task_id: Optional[str] = "task_easy"
 
 
 #Health check
@@ -44,9 +44,8 @@ def health():
 
 
 #reset
-
 @app.post("/reset", response_model=Observation)
-def reset(req: ResetRequest):
+def reset(req: ResetRequest = ResetRequest()):
     """
     Start a new episode.
     Returns the initial observation (dirty dataset summary).
