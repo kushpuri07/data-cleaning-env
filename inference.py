@@ -17,13 +17,14 @@ def run_baseline():
     client = OpenAI(api_key=HF_TOKEN or "dummy-key", base_url=API_BASE_URL)
 
     for task_id, task in TASKS.items():
-        print(f"START task={task_id}")
+        print(f"[START] task={task_id}", flush=True)
 
         env = DataCleaningEnv()
         obs = env.reset(task_id)
         initial_df   = env.original_df.copy()
         extra_tables = env._extra_tables.copy()
         history = []
+        step_num = 0
 
         for step_num in range(15):
             user_msg = f"""Dataset state:
@@ -46,26 +47,26 @@ Output a JSON action."""
                 raw = response.choices[0].message.content.strip()
                 history.append({"role": "assistant", "content": raw})
             except Exception as e:
-                print(f"STEP task={task_id} step={step_num} action=none reward=0.0 error={e}")
+                print(f"[STEP] task={task_id} step={step_num} action=none reward=0.0 error={e}", flush=True)
                 break
 
             try:
                 action = Action(**json.loads(raw))
                 result = env.step(action)
                 obs    = result.observation
-                print(f"STEP task={task_id} step={step_num} action={action.action_type} reward={result.reward.value:.4f} quality={obs.quality_score:.4f}")
+                print(f"[STEP] task={task_id} step={step_num} action={action.action_type} reward={result.reward.value:.4f} quality={obs.quality_score:.4f}", flush=True)
             except Exception as e:
-                print(f"STEP task={task_id} step={step_num} action=parse_error reward=0.0 error={e}")
+                print(f"[STEP] task={task_id} step={step_num} action=parse_error reward=0.0 error={e}", flush=True)
                 continue
 
             if result.done:
                 break
 
         result = run_grader(task_id, initial_df, env.df, extra_tables)
-        print(f"END task={task_id} score={result.score:.4f} passed={result.passed}")
+        print(f"[END] task={task_id} score={result.score:.4f} steps={step_num+1}", flush=True)
 
 if __name__ == "__main__":
     try:
         run_baseline()
     except Exception as e:
-        print(f"END error={e}")
+        print(f"[END] error={e}", flush=True)
