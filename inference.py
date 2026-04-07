@@ -21,7 +21,7 @@ from environment import DataCleaningEnv
 from tasks import TASKS, run_grader
 
 
-# ── Config from environment variables (required by hackathon spec) ─────────────
+# ── Config from environment variables (required by hackathon spec) 
 
 API_BASE_URL = os.environ.get("API_BASE_URL", "https://api.openai.com/v1")
 MODEL_NAME   = os.environ.get("MODEL_NAME",   "gpt-4o-mini")
@@ -31,7 +31,6 @@ TEMPERATURE  = 0.0
 MAX_STEPS    = 15  # keeps runtime well under 20 min on 2vcpu/8gb
 
 
-# ── System prompt ──────────────────────────────────────────────────────────────
 
 SYSTEM_PROMPT = """
 You are a data cleaning agent. You will be given a summary of a dirty dataset
@@ -66,7 +65,7 @@ Rules:
 """
 
 
-# ── Agent loop
+#Agent loop
 
 def run_agent_on_task(client: OpenAI, task_id: str) -> float:
     """Run the agent on one task. Returns grader score 0.0–1.0."""
@@ -153,23 +152,30 @@ def _format_columns(obs) -> str:
 #Main
 
 def run_baseline() -> BaselineResult:
-    """Run agent on all 3 tasks. Called by /baseline endpoint."""
-    if not HF_TOKEN:
-        raise EnvironmentError(
-            "HF_TOKEN not set. Export it before running:\n"
-            "  export HF_TOKEN=your_token\n"
-            "  export API_BASE_URL=https://api.openai.com/v1\n"
-            "  export MODEL_NAME=gpt-4o-mini"
+    api_key = HF_TOKEN or "dummy-key"
+    base_url = API_BASE_URL or "https://api.openai.com/v1"
+
+    try:
+        client = OpenAI(api_key=api_key, base_url=base_url)
+    except Exception as e:
+        print(f"[!] Could not create OpenAI client: {e}")
+        return BaselineResult(
+            model=MODEL_NAME,
+            results={"task_easy": 0.0, "task_medium": 0.0, "task_hard": 0.0},
+            average=0.0
         )
 
-    client = OpenAI(api_key=HF_TOKEN, base_url=API_BASE_URL)
     scores = {}
 
     for task_id, task in TASKS.items():
         print(f"\n{'='*60}")
         print(f"Task: {task['name']} ({task['difficulty'].upper()})")
         print(f"{'='*60}")
-        score = run_agent_on_task(client, task_id)
+        try:
+            score = run_agent_on_task(client, task_id)
+        except Exception as e:
+            print(f"[!] Task {task_id} failed: {e}")
+            score = 0.0
         scores[task_id] = round(score, 4)
         print(f"\n  Final score: {score:.4f} | Passed: {score >= 0.7}")
 
@@ -184,6 +190,8 @@ def run_baseline() -> BaselineResult:
 
     return BaselineResult(model=MODEL_NAME, results=scores, average=average)
 
-
 if __name__ == "__main__":
-    run_baseline()
+    try:
+        run_baseline()
+    except Exception as e:
+        print(f"[!] Baseline failed: {e}")
