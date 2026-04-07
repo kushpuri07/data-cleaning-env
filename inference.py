@@ -53,7 +53,7 @@ Output a JSON action."""
                     raw = response.choices[0].message.content.strip()
                     history.append({"role": "assistant", "content": raw})
                 except Exception as e:
-                    print(f"[STEP] step={step_num} action=none reward=0.0 error={str(e)}", flush=True)
+                    print(f"[STEP] step={step_num} reward=0.0 error={str(e)}", flush=True)
                     sys.stdout.flush()
                     break
 
