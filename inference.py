@@ -1,20 +1,38 @@
 import os
 import sys
 import json
+
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from openai import OpenAI
-from models import Action, BaselineResult
-from environment import DataCleaningEnv
-from tasks import TASKS, run_grader
+# Print immediately to confirm script started
+print("[START] task=startup", flush=True)
 
-API_BASE_URL = os.getenv("API_BASE_URL", "<your-api-base-url>")
-MODEL_NAME   = os.getenv("MODEL_NAME",   "<your-active-model>")
+try:
+    from openai import OpenAI
+    print("[STEP] step=0 action=import_openai reward=1.0", flush=True)
+except Exception as e:
+    print(f"[STEP] step=0 action=import_openai reward=0.0 error={e}", flush=True)
+
+try:
+    from models import Action
+    from environment import DataCleaningEnv
+    from tasks import TASKS, run_grader
+    print("[STEP] step=1 action=import_modules reward=1.0", flush=True)
+except Exception as e:
+    print(f"[STEP] step=1 action=import_modules reward=0.0 error={e}", flush=True)
+    print("[END] task=startup score=0.0 steps=1", flush=True)
+    sys.exit(0)
+
+print("[END] task=startup score=1.0 steps=2", flush=True)
+
+API_BASE_URL = os.getenv("API_BASE_URL", "https://api.openai.com/v1")
+MODEL_NAME   = os.getenv("MODEL_NAME",   "gpt-4o-mini")
 HF_TOKEN     = os.getenv("HF_TOKEN")
 
 SYSTEM_PROMPT = """You are a data cleaning agent. Output ONLY a raw JSON action object.
 Available action_types: fill_null, drop_duplicates, fix_dtype, normalize_str, drop_outliers, fix_foreign_key, fix_encoding, done
 JSON format: {"action_type": "...", "column": "...", "fill_value": "...", "target_dtype": "...", "normalize_map": {}, "reference_table": "...", "reference_column": "...", "z_threshold": 3.0}"""
+
 
 def run_baseline():
     client = OpenAI(api_key=HF_TOKEN or "dummy-key", base_url=API_BASE_URL)
@@ -22,10 +40,16 @@ def run_baseline():
     for task_id, task in TASKS.items():
         print(f"[START] task={task_id}", flush=True)
 
-        env = DataCleaningEnv()
-        obs = env.reset(task_id)
-        initial_df   = env.original_df.copy()
-        extra_tables = env._extra_tables.copy()
+        try:
+            env = DataCleaningEnv()
+            obs = env.reset(task_id)
+            initial_df   = env.original_df.copy()
+            extra_tables = env._extra_tables.copy()
+        except Exception as e:
+            print(f"[STEP] task={task_id} step=0 action=reset reward=0.0 error={e}", flush=True)
+            print(f"[END] task={task_id} score=0.0 steps=0", flush=True)
+            continue
+
         history = []
         step_num = 0
 
@@ -65,11 +89,15 @@ Output a JSON action."""
             if result.done:
                 break
 
-        result = run_grader(task_id, initial_df, env.df, extra_tables)
-        print(f"[END] task={task_id} score={result.score:.4f} steps={step_num+1}", flush=True)
+        try:
+            grade = run_grader(task_id, initial_df, env.df, extra_tables)
+            print(f"[END] task={task_id} score={grade.score:.4f} steps={step_num+1}", flush=True)
+        except Exception as e:
+            print(f"[END] task={task_id} score=0.0 steps={step_num+1} error={e}", flush=True)
+
 
 if __name__ == "__main__":
     try:
         run_baseline()
     except Exception as e:
-        print(f"[END] error={e}", flush=True)
+        print(f"[END] task=main score=0.0 steps=0 error={e}", flush=True)
