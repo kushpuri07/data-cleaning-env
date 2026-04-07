@@ -22,55 +22,65 @@ def run_baseline():
 
     for task_id, task in TASKS.items():
         print(f"[START] task={task_id}", flush=True)
+        sys.stdout.flush()
 
-        env = DataCleaningEnv()
-        obs = env.reset(task_id)
-        initial_df   = env.original_df.copy()
-        extra_tables = env._extra_tables.copy()
-        history = []
-        step_num = 0
+        try:
+            env = DataCleaningEnv()
+            obs = env.reset(task_id)
+            initial_df   = env.original_df.copy()
+            extra_tables = env._extra_tables.copy()
+            history = []
+            step_num = 0
 
-        for step_num in range(15):
-            user_msg = f"""Dataset state:
+            for step_num in range(15):
+                user_msg = f"""Dataset state:
 - Rows: {obs.total_rows}, Nulls: {obs.null_count}, Duplicates: {obs.duplicate_count}, Quality: {obs.quality_score:.3f}
 - Issues: {', '.join(obs.issues) if obs.issues else 'None'}
 - Columns: {[f"{c.name}(nulls={c.null_count},dtype={c.dtype})" for c in obs.columns]}
 Output a JSON action."""
 
-            history.append({"role": "user", "content": user_msg})
+                history.append({"role": "user", "content": user_msg})
 
-            try:
-                response = client.chat.completions.create(
-                    model=MODEL_NAME,
-                    temperature=0.0,
-                    messages=[
-                        {"role": "system", "content": SYSTEM_PROMPT},
-                        *history,
-                    ],
-                )
-                raw = response.choices[0].message.content.strip()
-                history.append({"role": "assistant", "content": raw})
-            except Exception as e:
-                print(f"[STEP] task={task_id} step={step_num} action=none reward=0.0 error={e}", flush=True)
-                break
+                try:
+                    response = client.chat.completions.create(
+                        model=MODEL_NAME,
+                        temperature=0.0,
+                        messages=[
+                            {"role": "system", "content": SYSTEM_PROMPT},
+                            *history,
+                        ],
+                    )
+                    raw = response.choices[0].message.content.strip()
+                    history.append({"role": "assistant", "content": raw})
+                except Exception as e:
+                    print(f"[STEP] step={step_num} action=none reward=0.0 error={str(e)}", flush=True)
+                    sys.stdout.flush()
+                    break
 
-            try:
-                action = Action(**json.loads(raw))
-                result = env.step(action)
-                obs    = result.observation
-                print(f"[STEP] task={task_id} step={step_num} action={action.action_type} reward={result.reward.value:.4f} quality={obs.quality_score:.4f}", flush=True)
-            except Exception as e:
-                print(f"[STEP] task={task_id} step={step_num} action=parse_error reward=0.0 error={e}", flush=True)
-                continue
+                try:
+                    action = Action(**json.loads(raw))
+                    result = env.step(action)
+                    obs    = result.observation
+                    print(f"[STEP] step={step_num} action={action.action_type} reward={result.reward.value:.4f} quality={obs.quality_score:.4f}", flush=True)
+                    sys.stdout.flush()
+                except Exception as e:
+                    print(f"[STEP] step={step_num} action=parse_error reward=0.0 error={str(e)}", flush=True)
+                    sys.stdout.flush()
+                    continue
 
-            if result.done:
-                break
+                if result.done:
+                    break
 
-        result = run_grader(task_id, initial_df, env.df, extra_tables)
-        print(f"[END] task={task_id} score={result.score:.4f} steps={step_num+1}", flush=True)
+            result = run_grader(task_id, initial_df, env.df, extra_tables)
+            print(f"[END] task={task_id} score={result.score:.4f} steps={step_num+1}", flush=True)
+            sys.stdout.flush()
+        except Exception as e:
+            print(f"[END] task={task_id} error={str(e)}", flush=True)
+            sys.stdout.flush()
 
 if __name__ == "__main__":
     try:
         run_baseline()
     except Exception as e:
-        print(f"[END] error={e}", flush=True)
+        print(f"[END] error={str(e)}", flush=True)
+        sys.stdout.flush()
