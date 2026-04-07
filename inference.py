@@ -13,10 +13,6 @@ API_BASE_URL = os.getenv("API_BASE_URL", "https://api.openai.com/v1")
 MODEL_NAME = os.getenv("MODEL_NAME", "gpt-4o-mini")
 HF_TOKEN = os.getenv("HF_TOKEN")
 
-# Validate HF_TOKEN is provided (mandatory)
-if HF_TOKEN is None:
-    raise ValueError("HF_TOKEN environment variable is required")
-
 
 SYSTEM_PROMPT = """You are a data cleaning agent. Output ONLY a raw JSON action object.
 Available action_types: fill_null, drop_duplicates, fix_dtype, normalize_str, drop_outliers, fix_foreign_key, fix_encoding, done
@@ -70,8 +66,11 @@ Output a JSON action."""
                     last_error = None
                 except Exception as e:
                     last_error = str(e)
+                    # Remove newlines from error message
+                    last_error = last_error.replace('\n', ' ').replace('\r', ' ')
                     # [STEP] format: step=<n> action=<action_str> reward=<0.00> done=<true|false> error=<msg|null>
-                    print(f"[STEP] step={step_num} action=none reward=0.00 done=true error={last_error}", flush=True)
+                    error_field = f'"{last_error}"' if last_error else "null"
+                    print(f"[STEP] step={step_num} action=none reward=0.00 done=true error={error_field}", flush=True)
                     sys.stdout.flush()
                     all_rewards.append(0.00)
                     total_steps = step_num + 1
@@ -89,6 +88,8 @@ Output a JSON action."""
                     last_error = None
                 except Exception as e:
                     last_error = str(e)
+                    # Remove newlines from error message
+                    last_error = last_error.replace('\n', ' ').replace('\r', ' ')
                     reward_value = 0.00
                     done = False
 
@@ -127,8 +128,15 @@ Output a JSON action."""
 
 if __name__ == "__main__":
     try:
+        # Check HF_TOKEN inside main block so we can print output even if it fails
+        if HF_TOKEN is None:
+            print('[END] success=false steps=0 rewards= error="HF_TOKEN environment variable is required"', flush=True)
+            sys.stdout.flush()
+            sys.exit(1)
+        
         run_baseline()
     except Exception as e:
         # Ensure we always print an [END] block even on fatal errors
-        print(f"[END] success=false steps=0 rewards= error={str(e)}", flush=True)
+        error_msg = str(e).replace('"', '\\"')  # Escape quotes in error message
+        print(f'[END] success=false steps=0 rewards= error="{error_msg}"', flush=True)
         sys.stdout.flush()
