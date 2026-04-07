@@ -1,5 +1,8 @@
 import os
+import sys
 import json
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
 from openai import OpenAI
 from models import Action, BaselineResult
 from environment import DataCleaningEnv
