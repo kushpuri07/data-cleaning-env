@@ -72,11 +72,9 @@ Output a JSON action."""
                     history.append({"role": "assistant", "content": raw})
                     last_error = None
                 except Exception as e:
-                    last_error = str(e)
-                    # Remove newlines from error message
-                    last_error = last_error.replace('\n', ' ').replace('\r', ' ')
+                    last_error = str(e).replace('\n', ' ').replace('\r', ' ')
                     # [STEP] format: step=<n> action=<action_str> reward=<0.00> done=<true|false> error=<msg|null>
-                    error_field = f'"{last_error}"' if last_error else "null"
+                    error_field = last_error if last_error else "null"
                     print(f"[STEP] step={step_num} action=none reward=0.00 done=true error={error_field}", flush=True)
                     sys.stdout.flush()
                     all_rewards.append(0.00)
@@ -86,24 +84,23 @@ Output a JSON action."""
                 # Try to parse and execute action
                 done = False
                 reward_value = 0.00
+                action_str = "none"
                 try:
                     action = Action(**json.loads(raw))
+                    action_str = action.action_type
                     result = env.step(action)
                     obs = result.observation
                     reward_value = round(result.reward.value, 2)
                     done = result.done
                     last_error = None
                 except Exception as e:
-                    last_error = str(e)
-                    # Remove newlines from error message
-                    last_error = last_error.replace('\n', ' ').replace('\r', ' ')
+                    last_error = str(e).replace('\n', ' ').replace('\r', ' ')
                     reward_value = 0.00
                     done = False
 
                 # [STEP] format: step=<n> action=<action_str> reward=<0.00> done=<true|false> error=<msg|null>
-                action_str = action.action_type if 'action' in locals() else 'parse_error'
-                error_field = f'"{last_error}"' if last_error else "null"
-                print(f"[STEP] step={step_num} action='{action_str}' reward={reward_value:.2f} done={'true' if done else 'false'} error={error_field}", flush=True)
+                error_field = last_error if last_error else "null"
+                print(f"[STEP] step={step_num} action={action_str} reward={reward_value:.2f} done={'true' if done else 'false'} error={error_field}", flush=True)
                 sys.stdout.flush()
 
                 all_rewards.append(reward_value)
@@ -140,22 +137,23 @@ def main():
     try:
         # Check if imports failed
         if not IMPORTS_OK:
-            error_msg = IMPORT_ERROR.replace('"', '\\"')
-            print(f'[END] success=false steps=0 rewards= error="Import failed: {error_msg}"', flush=True)
+            print(f'[START] task=import-check env=data-cleaning model={MODEL_NAME}', flush=True)
+            print(f'[END] success=false steps=0 rewards=', flush=True)
             sys.stdout.flush()
             return
         
         # Check HF_TOKEN inside main block so we can print output even if it fails
         if HF_TOKEN is None:
-            print('[END] success=false steps=0 rewards= error="HF_TOKEN environment variable is required"', flush=True)
+            print(f'[START] task=token-check env=data-cleaning model={MODEL_NAME}', flush=True)
+            print(f'[END] success=false steps=0 rewards=', flush=True)
             sys.stdout.flush()
             return
         
         run_baseline()
     except Exception as e:
         # Ensure we always print an [END] block even on fatal errors
-        error_msg = str(e).replace('"', '\\"')  # Escape quotes in error message
-        print(f'[END] success=false steps=0 rewards= error="{error_msg}"', flush=True)
+        print(f'[START] task=error-recovery env=data-cleaning model={MODEL_NAME}', flush=True)
+        print(f'[END] success=false steps=0 rewards=', flush=True)
         sys.stdout.flush()
 
 
