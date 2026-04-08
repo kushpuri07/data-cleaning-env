@@ -1,10 +1,6 @@
 import os
 import json
 import sys
-from openai import OpenAI
-from models import Action, BaselineResult
-from environment import DataCleaningEnv
-from tasks import TASKS, run_grader
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
@@ -12,6 +8,17 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 API_BASE_URL = os.getenv("API_BASE_URL", "https://api.openai.com/v1")
 MODEL_NAME = os.getenv("MODEL_NAME", "gpt-4o-mini")
 HF_TOKEN = os.getenv("HF_TOKEN")
+
+# Import heavy dependencies after env vars are set
+try:
+    from openai import OpenAI
+    from models import Action, BaselineResult
+    from environment import DataCleaningEnv
+    from tasks import TASKS, run_grader
+    IMPORTS_OK = True
+except ImportError as e:
+    IMPORTS_OK = False
+    IMPORT_ERROR = str(e)
 
 
 SYSTEM_PROMPT = """You are a data cleaning agent. Output ONLY a raw JSON action object.
@@ -126,13 +133,23 @@ Output a JSON action."""
         print(f"[END] success={'true' if success else 'false'} steps={total_steps} rewards={rewards_str}", flush=True)
         sys.stdout.flush()
 
-if __name__ == "__main__":
+
+# Execute main logic immediately when module is loaded/imported
+# (not just when run as __main__, in case validator imports this differently)
+def main():
     try:
+        # Check if imports failed
+        if not IMPORTS_OK:
+            error_msg = IMPORT_ERROR.replace('"', '\\"')
+            print(f'[END] success=false steps=0 rewards= error="Import failed: {error_msg}"', flush=True)
+            sys.stdout.flush()
+            return
+        
         # Check HF_TOKEN inside main block so we can print output even if it fails
         if HF_TOKEN is None:
             print('[END] success=false steps=0 rewards= error="HF_TOKEN environment variable is required"', flush=True)
             sys.stdout.flush()
-            sys.exit(1)
+            return
         
         run_baseline()
     except Exception as e:
@@ -140,3 +157,10 @@ if __name__ == "__main__":
         error_msg = str(e).replace('"', '\\"')  # Escape quotes in error message
         print(f'[END] success=false steps=0 rewards= error="{error_msg}"', flush=True)
         sys.stdout.flush()
+
+
+# Run immediately when imported/executed
+main()
+
+if __name__ == "__main__":
+    pass  # main() already ran above
