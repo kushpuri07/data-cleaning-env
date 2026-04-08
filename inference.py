@@ -10,9 +10,8 @@ API_BASE_URL = os.environ.get("API_BASE_URL", "https://api.openai.com/v1")
 MODEL_NAME = os.environ.get("MODEL_NAME", "gpt-4.1-mini")
 API_KEY = os.environ.get("API_KEY")
 
-# Validate required env vars
-if API_KEY is None:
-    raise ValueError("API_KEY environment variable is required")
+# Note: Don't validate API_KEY here - let the client init handle it
+# This allows the validator to inject credentials at runtime
 
 # Import heavy dependencies after env vars are set
 try:
@@ -44,15 +43,14 @@ def run_baseline():
 
     # Try to initialize client
     client = None
-    client_error = None
     try:
         client = OpenAI(
-            base_url=os.environ["API_BASE_URL"],
-            api_key=os.environ["API_KEY"],
+            base_url=API_BASE_URL,
+            api_key=API_KEY,
         )
     except Exception as e:
-        client_error = str(e).replace('\n', ' ').replace('\r', ' ')
-        print(f"[STEP] step=0 action=none reward=0.00 done=true error=client_init_failed:{client_error}", flush=True)
+        error_msg = str(e).replace('\n', ' ').replace('\r', ' ')
+        print(f"[STEP] step=0 action=none reward=0.00 done=true error={error_msg}", flush=True)
         sys.stdout.flush()
         print(f"[END] success=false steps=1 rewards=0.00", flush=True)
         sys.stdout.flush()
