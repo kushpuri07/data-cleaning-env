@@ -135,15 +135,21 @@ Output a JSON action."""
                     if result.score >= 0.7:
                         success = True
                 except Exception as e:
-                    pass
+                    error_msg = str(e).replace('\n', ' ').replace('\r', ' ')
+                    # Grading error is not critical, log but continue
 
             except Exception as e:
-                pass
+                error_msg = str(e).replace('\n', ' ').replace('\r', ' ')
+                print(f"[STEP] step=0 action=none reward=0.00 done=true error={error_msg}", flush=True)
+                sys.stdout.flush()
+                task_rewards.append(0.00)
+                task_steps = 1
             finally:
                 if env is not None:
                     try:
                         env.close()
-                    except:
+                    except Exception as close_err:
+                        # Cleanup error is not critical
                         pass
             
             all_rewards.extend(task_rewards)
