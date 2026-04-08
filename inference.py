@@ -32,122 +32,127 @@ JSON format: {"action_type": "...", "column": "...", "fill_value": "...", "targe
 
 def run_baseline():
     """Main inference loop processing all tasks."""
+    all_rewards = []
+    total_steps = 0
+    success = False
+    env = None
+    
+    # Print [START] once at the beginning
+    print(f"[START] task=baseline env=data-cleaning model={MODEL_NAME}", flush=True)
+    sys.stdout.flush()
+
+    # Try to initialize client
+    client = None
+    client_error = None
     try:
         client = OpenAI(api_key=HF_TOKEN, base_url=API_BASE_URL)
     except Exception as e:
-        print(f"[START] task=init env=data-cleaning model={MODEL_NAME}", flush=True)
-        sys.stdout.flush()
+        client_error = str(e).replace('\n', ' ').replace('\r', ' ')
         print(f"[END] success=false steps=0 rewards=", flush=True)
         sys.stdout.flush()
         return
 
-    for task_id, task in TASKS.items():
-        # Track metrics for [END] block
-        all_rewards = []
-        total_steps = 0
-        success = False
-        
-        # START block: [START] task=<task_name> env=<benchmark> model=<model_name>
-        print(f"[START] task={task_id} env=data-cleaning model={MODEL_NAME}", flush=True)
-        sys.stdout.flush()
+    # Process all tasks
+    try:
+        for task_id, task in TASKS.items():
+            task_rewards = []
+            task_steps = 0
+            
+            try:
+                env = DataCleaningEnv()
+                obs = env.reset(task_id)
+                initial_df = env.original_df.copy()
+                extra_tables = env._extra_tables.copy()
+                history = []
+                step_num = 0
+                last_error = None
 
-        env = None
-        try:
-            env = DataCleaningEnv()
-            obs = env.reset(task_id)
-            initial_df = env.original_df.copy()
-            extra_tables = env._extra_tables.copy()
-            history = []
-            step_num = 0
-            last_error = None
-
-            for step_num in range(15):
-                user_msg = f"""Dataset state:
+                for step_num in range(15):
+                    user_msg = f"""Dataset state:
 - Rows: {obs.total_rows}, Nulls: {obs.null_count}, Duplicates: {obs.duplicate_count}, Quality: {obs.quality_score:.3f}
 - Issues: {', '.join(obs.issues) if obs.issues else 'None'}
 - Columns: {[f"{c.name}(nulls={c.null_count},dtype={c.dtype})" for c in obs.columns]}
 Output a JSON action."""
 
-                history.append({"role": "user", "content": user_msg})
+                    history.append({"role": "user", "content": user_msg})
 
-                # Try to get LLM response
-                try:
-                    response = client.chat.completions.create(
-                        model=MODEL_NAME,
-                        temperature=0.0,
-                        messages=[
-                            {"role": "system", "content": SYSTEM_PROMPT},
-                            *history,
-                        ],
-                    )
-                    raw = response.choices[0].message.content.strip()
-                    history.append({"role": "assistant", "content": raw})
-                    last_error = None
-                except Exception as e:
-                    last_error = str(e).replace('\n', ' ').replace('\r', ' ')
-                    # [STEP] format: step=<n> action=<action_str> reward=<0.00> done=<true|false> error=<msg|null>
-                    error_field = last_error if last_error else "null"
-                    print(f"[STEP] step={step_num} action=none reward=0.00 done=true error={error_field}", flush=True)
-                    sys.stdout.flush()
-                    all_rewards.append(0.00)
-                    total_steps = step_num + 1
-                    break
+                    # Try to get LLM response
+                    try:
+                        response = client.chat.completions.create(
+                            model=MODEL_NAME,
+                            temperature=0.0,
+                            messages=[
+                                {"role": "system", "content": SYSTEM_PROMPT},
+                                *history,
+                            ],
+                        )
+                        raw = response.choices[0].message.content.strip()
+                        history.append({"role": "assistant", "content": raw})
+                        last_error = None
+                    except Exception as e:
+                        last_error = str(e).replace('\n', ' ').replace('\r', ' ')
+                        error_field = last_error if last_error else "null"
+                        print(f"[STEP] step={step_num} action=none reward=0.00 done=true error={error_field}", flush=True)
+                        sys.stdout.flush()
+                        task_rewards.append(0.00)
+                        task_steps = step_num + 1
+                        break
 
-                # Try to parse and execute action
-                done = False
-                reward_value = 0.00
-                action_str = "none"
-                try:
-                    action = Action(**json.loads(raw))
-                    action_str = action.action_type
-                    result = env.step(action)
-                    obs = result.observation
-                    reward_value = round(result.reward.value, 2)
-                    done = result.done
-                    last_error = None
-                except Exception as e:
-                    last_error = str(e).replace('\n', ' ').replace('\r', ' ')
-                    reward_value = 0.00
+                    # Try to parse and execute action
                     done = False
+                    reward_value = 0.00
+                    action_str = "none"
+                    try:
+                        action = Action(**json.loads(raw))
+                        action_str = action.action_type
+                        result = env.step(action)
+                        obs = result.observation
+                        reward_value = round(result.reward.value, 2)
+                        done = result.done
+                        last_error = None
+                    except Exception as e:
+                        last_error = str(e).replace('\n', ' ').replace('\r', ' ')
+                        reward_value = 0.00
+                        done = False
 
-                # [STEP] format: step=<n> action=<action_str> reward=<0.00> done=<true|false> error=<msg|null>
-                error_field = last_error if last_error else "null"
-                print(f"[STEP] step={step_num} action={action_str} reward={reward_value:.2f} done={'true' if done else 'false'} error={error_field}", flush=True)
-                sys.stdout.flush()
+                    error_field = last_error if last_error else "null"
+                    print(f"[STEP] step={step_num} action={action_str} reward={reward_value:.2f} done={'true' if done else 'false'} error={error_field}", flush=True)
+                    sys.stdout.flush()
 
-                all_rewards.append(reward_value)
-                total_steps = step_num + 1
+                    task_rewards.append(reward_value)
+                    task_steps = step_num + 1
 
-                if done:
-                    success = True
-                    break
+                    if done:
+                        success = True
+                        break
 
-            # Try to grade the task
-            try:
-                result = run_grader(task_id, initial_df, env.df, extra_tables)
-                if result.score >= 0.7:  # Assuming 0.7 is passing score
-                    success = True
-            except Exception as e:
-                last_error = str(e)
-
-        except Exception as e:
-            last_error = str(e)
-            total_steps = 0
-            success = False
-        finally:
-            # Always close environment and print [END] block
-            if env is not None:
+                # Try to grade the task
                 try:
-                    env.close()
-                except:
+                    result = run_grader(task_id, initial_df, env.df, extra_tables)
+                    if result.score >= 0.7:
+                        success = True
+                except Exception as e:
                     pass
+
+            except Exception as e:
+                pass
+            finally:
+                if env is not None:
+                    try:
+                        env.close()
+                    except:
+                        pass
             
-            # Format rewards list: r1,r2,...,rn (2 decimal places each)
-            rewards_str = ",".join(f"{r:.2f}" for r in all_rewards)
-            
-            # [END] format: success=<true|false> steps=<n> rewards=<r1,r2,...,rn>
-            print(f"[END] success={'true' if success else 'false'} steps={total_steps} rewards={rewards_str}", flush=True)
-            sys.stdout.flush()
+            all_rewards.extend(task_rewards)
+            total_steps += task_steps
+
+    except Exception as e:
+        success = False
+    finally:
+        # Print [END] once at the end
+        rewards_str = ",".join(f"{r:.2f}" for r in all_rewards)
+        print(f"[END] success={'true' if success else 'false'} steps={total_steps} rewards={rewards_str}", flush=True)
+        sys.stdout.flush()
 
 
 # Execute main logic immediately when module is loaded/imported
