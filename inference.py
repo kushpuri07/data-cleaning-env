@@ -7,11 +7,11 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 # Environment variable configuration per guidelines
 API_BASE_URL = os.getenv("API_BASE_URL", "https://api.openai.com/v1")
 MODEL_NAME = os.getenv("MODEL_NAME", "gpt-4.1-mini")
-HF_TOKEN = os.getenv("HF_TOKEN")
+API_KEY = os.getenv("API_KEY")
 
-# Validate HF_TOKEN is present
-if HF_TOKEN is None:
-    raise ValueError("HF_TOKEN environment variable is required")
+# Validate API_KEY is present
+if API_KEY is None:
+    raise ValueError("API_KEY environment variable is required")
 
 # Import heavy dependencies after env vars are set
 try:
@@ -45,7 +45,7 @@ def run_baseline():
     client = None
     client_error = None
     try:
-        client = OpenAI(api_key=HF_TOKEN, base_url=API_BASE_URL)
+        client = OpenAI(api_key=API_KEY, base_url=API_BASE_URL)
     except Exception as e:
         client_error = str(e).replace('\n', ' ').replace('\r', ' ')
         print(f"[END] success=false steps=0 rewards=", flush=True)
