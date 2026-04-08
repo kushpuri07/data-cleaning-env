@@ -7,7 +7,20 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 # Environment variable configuration per guidelines
 API_BASE_URL = os.getenv("API_BASE_URL", "https://api.openai.com/v1")
 MODEL_NAME = os.getenv("MODEL_NAME", "gpt-4o-mini")
-HF_TOKEN = os.getenv("HF_TOKEN")  # Validator-provided API key (required)
+
+# Try API_KEY first (validator provides this), fallback to HF_TOKEN (local dev)
+API_KEY = os.getenv("API_KEY")
+if API_KEY is None:
+    API_KEY = os.getenv("HF_TOKEN")
+
+# Debug to stderr (won't pollute stdout)
+print(f"DEBUG: API_BASE_URL set: {bool(API_BASE_URL)}", file=sys.stderr)
+print(f"DEBUG: MODEL_NAME: {MODEL_NAME}", file=sys.stderr)
+print(f"DEBUG: API_KEY set: {API_KEY is not None}", file=sys.stderr)
+print(f"DEBUG: HF_TOKEN set: {os.getenv('HF_TOKEN') is not None}", file=sys.stderr)
+
+if API_KEY is None:
+    raise ValueError("API_KEY or HF_TOKEN environment variable is required")
 
 # Import heavy dependencies after env vars are set
 try:
@@ -28,7 +41,9 @@ JSON format: {"action_type": "...", "column": "...", "fill_value": "...", "targe
 
 def run_baseline():
     """Main inference loop processing all tasks."""
-    client = OpenAI(api_key=HF_TOKEN, base_url=API_BASE_URL)
+    print("DEBUG: run_baseline() called", file=sys.stderr)
+    client = OpenAI(api_key=API_KEY, base_url=API_BASE_URL)
+    print("DEBUG: OpenAI client initialized", file=sys.stderr)
 
     for task_id, task in TASKS.items():
         # Track metrics for [END] block
@@ -60,6 +75,7 @@ Output a JSON action."""
 
                 # Try to get LLM response
                 try:
+                    print(f"DEBUG: step {step_num} - about to call OpenAI", file=sys.stderr)
                     response = client.chat.completions.create(
                         model=MODEL_NAME,
                         temperature=0.0,
@@ -68,6 +84,7 @@ Output a JSON action."""
                             *history,
                         ],
                     )
+                    print(f"DEBUG: step {step_num} - OpenAI call returned", file=sys.stderr)
                     raw = response.choices[0].message.content.strip()
                     history.append({"role": "assistant", "content": raw})
                     last_error = None
@@ -131,34 +148,27 @@ Output a JSON action."""
         sys.stdout.flush()
 
 
-# Execute main logic immediately when module is loaded/imported
-# (not just when run as __main__, in case validator imports this differently)
+# Execute main logic
 def main():
     try:
+        print("DEBUG: main() started", file=sys.stderr)
+        
         # Check if imports failed
         if not IMPORTS_OK:
-            print(f'[START] task=import-check env=data-cleaning model={MODEL_NAME}', flush=True)
-            print(f'[END] success=false steps=0 rewards=', flush=True)
-            sys.stdout.flush()
-            return
+            raise ImportError(f"Import failed: {IMPORT_ERROR}")
         
-        # Check HF_TOKEN inside main block so we can print output even if it fails
-        if HF_TOKEN is None:
-            print(f'[START] task=token-check env=data-cleaning model={MODEL_NAME}', flush=True)
-            print(f'[END] success=false steps=0 rewards=', flush=True)
-            sys.stdout.flush()
-            return
+        print("DEBUG: imports successful", file=sys.stderr)
+        print("DEBUG: about to call run_baseline()", file=sys.stderr)
         
         run_baseline()
+        
     except Exception as e:
         # Ensure we always print an [END] block even on fatal errors
-        print(f'[START] task=error-recovery env=data-cleaning model={MODEL_NAME}', flush=True)
-        print(f'[END] success=false steps=0 rewards=', flush=True)
+        print(f"[START] task=error-recovery env=data-cleaning model={MODEL_NAME}", flush=True)
+        print(f"[END] success=false steps=0 rewards=", flush=True)
         sys.stdout.flush()
+        raise  # Re-raise so it's visible
 
-
-# Run immediately when imported/executed
-main()
 
 if __name__ == "__main__":
-    pass  # main() already ran above
+    main()
