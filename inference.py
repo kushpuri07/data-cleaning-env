@@ -46,17 +46,15 @@ def run_baseline():
     client = None
     client_error = None
     try:
-        # Debug: verify env vars are set
-        api_base = os.environ.get("API_BASE_URL", "NOT_SET")
-        api_key = os.environ.get("API_KEY", "NOT_SET")
-        
         client = OpenAI(
             base_url=os.environ["API_BASE_URL"],
             api_key=os.environ["API_KEY"],
         )
     except Exception as e:
         client_error = str(e).replace('\n', ' ').replace('\r', ' ')
-        print(f"[END] success=false steps=0 rewards=", flush=True)
+        print(f"[STEP] step=0 action=none reward=0.00 done=true error=client_init_failed:{client_error}", flush=True)
+        sys.stdout.flush()
+        print(f"[END] success=false steps=1 rewards=0.00", flush=True)
         sys.stdout.flush()
         return
 
