@@ -4,29 +4,14 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-# Unset any proxy environment variables that OpenAI SDK might pick up
-for var in ["HTTP_PROXY", "HTTPS_PROXY", "http_proxy", "https_proxy", "ALL_PROXY", "all_proxy"]:
-    if var in os.environ:
-        print(f"DEBUG: Unsetting {var} to prevent OpenAI SDK from using proxies", file=sys.stderr)
-        del os.environ[var]
-
 # Environment variable configuration per guidelines
 API_BASE_URL = os.getenv("API_BASE_URL", "https://api.openai.com/v1")
-MODEL_NAME = os.getenv("MODEL_NAME", "gpt-4o-mini")
+MODEL_NAME = os.getenv("MODEL_NAME", "gpt-4.1-mini")
+HF_TOKEN = os.getenv("HF_TOKEN")
 
-# Try API_KEY first (validator provides this), fallback to HF_TOKEN (local dev)
-API_KEY = os.getenv("API_KEY")
-if API_KEY is None:
-    API_KEY = os.getenv("HF_TOKEN")
-
-# Debug to stderr (won't pollute stdout)
-print(f"DEBUG: API_BASE_URL set: {bool(API_BASE_URL)}", file=sys.stderr)
-print(f"DEBUG: MODEL_NAME: {MODEL_NAME}", file=sys.stderr)
-print(f"DEBUG: API_KEY set: {API_KEY is not None}", file=sys.stderr)
-print(f"DEBUG: HF_TOKEN set: {os.getenv('HF_TOKEN') is not None}", file=sys.stderr)
-
-if API_KEY is None:
-    raise ValueError("API_KEY or HF_TOKEN environment variable is required")
+# Validate HF_TOKEN is present
+if HF_TOKEN is None:
+    raise ValueError("HF_TOKEN environment variable is required")
 
 # Import heavy dependencies after env vars are set
 try:
@@ -45,17 +30,9 @@ Available action_types: fill_null, drop_duplicates, fix_dtype, normalize_str, dr
 JSON format: {"action_type": "...", "column": "...", "fill_value": "...", "target_dtype": "...", "normalize_map": {}, "reference_table": "...", "reference_column": "...", "z_threshold": 3.0}"""
 
 
-def run_baseline(api_key, api_base_url, model_name):
+def run_baseline():
     """Main inference loop processing all tasks."""
-    print("DEBUG: run_baseline() called", file=sys.stderr)
-    try:
-        # Minimal initialization - only api_key and base_url
-        # Don't pass proxies or any environment-inferred parameters
-        client = OpenAI(api_key=api_key, base_url=api_base_url)
-        print("DEBUG: OpenAI client initialized", file=sys.stderr)
-    except Exception as e:
-        print(f"DEBUG: Failed to initialize OpenAI client: {e}", file=sys.stderr)
-        raise
+    client = OpenAI(api_key=HF_TOKEN, base_url=API_BASE_URL)
 
     for task_id, task in TASKS.items():
         # Track metrics for [END] block
@@ -64,9 +41,10 @@ def run_baseline(api_key, api_base_url, model_name):
         success = False
         
         # START block: [START] task=<task_name> env=<benchmark> model=<model_name>
-        print(f"[START] task={task_id} env=data-cleaning model={model_name}", flush=True)
+        print(f"[START] task={task_id} env=data-cleaning model={MODEL_NAME}", flush=True)
         sys.stdout.flush()
 
+        env = None
         try:
             env = DataCleaningEnv()
             obs = env.reset(task_id)
@@ -87,16 +65,14 @@ Output a JSON action."""
 
                 # Try to get LLM response
                 try:
-                    print(f"DEBUG: step {step_num} - about to call OpenAI", file=sys.stderr)
                     response = client.chat.completions.create(
-                        model=model_name,
+                        model=MODEL_NAME,
                         temperature=0.0,
                         messages=[
                             {"role": "system", "content": SYSTEM_PROMPT},
                             *history,
                         ],
                     )
-                    print(f"DEBUG: step {step_num} - OpenAI call returned", file=sys.stderr)
                     raw = response.choices[0].message.content.strip()
                     history.append({"role": "assistant", "content": raw})
                     last_error = None
@@ -151,36 +127,29 @@ Output a JSON action."""
             last_error = str(e)
             total_steps = 0
             success = False
+        finally:
+            # Always close environment and print [END] block
+            if env is not None:
+                try:
+                    env.close()
+                except:
+                    pass
+            
+            # Format rewards list: r1,r2,...,rn (2 decimal places each)
+            rewards_str = ",".join(f"{r:.2f}" for r in all_rewards)
+            
+            # [END] format: success=<true|false> steps=<n> rewards=<r1,r2,...,rn>
+            print(f"[END] success={'true' if success else 'false'} steps={total_steps} rewards={rewards_str}", flush=True)
+            sys.stdout.flush()
 
-        # Format rewards list: r1,r2,...,rn (2 decimal places each)
-        rewards_str = ",".join(f"{r:.2f}" for r in all_rewards)
 
-        # [END] format: success=<true|false> steps=<n> rewards=<r1,r2,...,rn>
-        print(f"[END] success={'true' if success else 'false'} steps={total_steps} rewards={rewards_str}", flush=True)
-        sys.stdout.flush()
-
-
-# Execute main logic
+# Execute main logic immediately when module is loaded/imported
 def main():
-    try:
-        print("DEBUG: main() started", file=sys.stderr)
-        
-        # Check if imports failed
-        if not IMPORTS_OK:
-            raise ImportError(f"Import failed: {IMPORT_ERROR}")
-        
-        print("DEBUG: imports successful", file=sys.stderr)
-        print("DEBUG: about to call run_baseline()", file=sys.stderr)
-        
-        run_baseline(API_KEY, API_BASE_URL, MODEL_NAME)
-        
-    except Exception as e:
-        # Ensure we always print an [END] block even on fatal errors
-        print(f"[START] task=error-recovery env=data-cleaning model={MODEL_NAME}", flush=True)
-        print(f"[END] success=false steps=0 rewards=", flush=True)
-        sys.stdout.flush()
-        raise  # Re-raise so it's visible
+    run_baseline()
 
+
+# Run immediately when imported/executed
+main()
 
 if __name__ == "__main__":
-    main()
+    pass  # main() already ran above
