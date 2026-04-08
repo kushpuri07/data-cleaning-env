@@ -45,7 +45,10 @@ def run_baseline():
     client = None
     client_error = None
     try:
-        client = OpenAI(api_key=API_KEY, base_url=API_BASE_URL)
+        client = OpenAI(
+            base_url=os.environ["API_BASE_URL"],
+            api_key=os.environ["API_KEY"],
+        )
     except Exception as e:
         client_error = str(e).replace('\n', ' ').replace('\r', ' ')
         print(f"[END] success=false steps=0 rewards=", flush=True)
