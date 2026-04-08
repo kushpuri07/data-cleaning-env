@@ -9,9 +9,12 @@ API_BASE_URL = os.getenv("API_BASE_URL", "https://api.openai.com/v1")
 MODEL_NAME = os.getenv("MODEL_NAME", "gpt-4.1-mini")
 API_KEY = os.getenv("API_KEY")
 
-# Validate API_KEY is present
+# Validate required env vars
 if API_KEY is None:
     raise ValueError("API_KEY environment variable is required")
+if "API_BASE_URL" not in os.environ:
+    # Ensure API_BASE_URL is in os.environ for direct access
+    os.environ["API_BASE_URL"] = API_BASE_URL
 
 # Import heavy dependencies after env vars are set
 try:
