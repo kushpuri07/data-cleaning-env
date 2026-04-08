@@ -6,8 +6,8 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 # Environment variable configuration per guidelines
 API_BASE_URL = os.getenv("API_BASE_URL", "https://api.openai.com/v1")
+API_KEY = os.getenv("API_KEY")  # Validator-provided API key (required)
 MODEL_NAME = os.getenv("MODEL_NAME", "gpt-4o-mini")
-HF_TOKEN = os.getenv("HF_TOKEN")
 
 # Import heavy dependencies after env vars are set
 try:
@@ -28,7 +28,7 @@ JSON format: {"action_type": "...", "column": "...", "fill_value": "...", "targe
 
 def run_baseline():
     """Main inference loop processing all tasks."""
-    client = OpenAI(api_key=HF_TOKEN, base_url=API_BASE_URL)
+    client = OpenAI(api_key=API_KEY, base_url=API_BASE_URL)
 
     for task_id, task in TASKS.items():
         # Track metrics for [END] block
@@ -142,9 +142,9 @@ def main():
             sys.stdout.flush()
             return
         
-        # Check HF_TOKEN inside main block so we can print output even if it fails
-        if HF_TOKEN is None:
-            print(f'[START] task=token-check env=data-cleaning model={MODEL_NAME}', flush=True)
+        # Check API_KEY inside main block so we can print output even if it fails
+        if API_KEY is None:
+            print(f'[START] task=api-key-check env=data-cleaning model={MODEL_NAME}', flush=True)
             print(f'[END] success=false steps=0 rewards=', flush=True)
             sys.stdout.flush()
             return
