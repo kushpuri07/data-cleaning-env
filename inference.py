@@ -32,7 +32,14 @@ JSON format: {"action_type": "...", "column": "...", "fill_value": "...", "targe
 
 def run_baseline():
     """Main inference loop processing all tasks."""
-    client = OpenAI(api_key=HF_TOKEN, base_url=API_BASE_URL)
+    try:
+        client = OpenAI(api_key=HF_TOKEN, base_url=API_BASE_URL)
+    except Exception as e:
+        print(f"[START] task=init env=data-cleaning model={MODEL_NAME}", flush=True)
+        sys.stdout.flush()
+        print(f"[END] success=false steps=0 rewards=", flush=True)
+        sys.stdout.flush()
+        return
 
     for task_id, task in TASKS.items():
         # Track metrics for [END] block
@@ -145,7 +152,13 @@ Output a JSON action."""
 
 # Execute main logic immediately when module is loaded/imported
 def main():
-    run_baseline()
+    try:
+        run_baseline()
+    except Exception as e:
+        print(f"[START] task=error env=data-cleaning model={MODEL_NAME}", flush=True)
+        sys.stdout.flush()
+        print(f"[END] success=false steps=0 rewards=", flush=True)
+        sys.stdout.flush()
 
 
 # Run immediately when imported/executed
