@@ -4,6 +4,12 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
+# Unset any proxy environment variables that OpenAI SDK might pick up
+for var in ["HTTP_PROXY", "HTTPS_PROXY", "http_proxy", "https_proxy", "ALL_PROXY", "all_proxy"]:
+    if var in os.environ:
+        print(f"DEBUG: Unsetting {var} to prevent OpenAI SDK from using proxies", file=sys.stderr)
+        del os.environ[var]
+
 # Environment variable configuration per guidelines
 API_BASE_URL = os.getenv("API_BASE_URL", "https://api.openai.com/v1")
 MODEL_NAME = os.getenv("MODEL_NAME", "gpt-4o-mini")
@@ -43,6 +49,8 @@ def run_baseline(api_key, api_base_url, model_name):
     """Main inference loop processing all tasks."""
     print("DEBUG: run_baseline() called", file=sys.stderr)
     try:
+        # Minimal initialization - only api_key and base_url
+        # Don't pass proxies or any environment-inferred parameters
         client = OpenAI(api_key=api_key, base_url=api_base_url)
         print("DEBUG: OpenAI client initialized", file=sys.stderr)
     except Exception as e:
