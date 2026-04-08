@@ -39,11 +39,15 @@ Available action_types: fill_null, drop_duplicates, fix_dtype, normalize_str, dr
 JSON format: {"action_type": "...", "column": "...", "fill_value": "...", "target_dtype": "...", "normalize_map": {}, "reference_table": "...", "reference_column": "...", "z_threshold": 3.0}"""
 
 
-def run_baseline():
+def run_baseline(api_key, api_base_url, model_name):
     """Main inference loop processing all tasks."""
     print("DEBUG: run_baseline() called", file=sys.stderr)
-    client = OpenAI(api_key=API_KEY, base_url=API_BASE_URL)
-    print("DEBUG: OpenAI client initialized", file=sys.stderr)
+    try:
+        client = OpenAI(api_key=api_key, base_url=api_base_url)
+        print("DEBUG: OpenAI client initialized", file=sys.stderr)
+    except Exception as e:
+        print(f"DEBUG: Failed to initialize OpenAI client: {e}", file=sys.stderr)
+        raise
 
     for task_id, task in TASKS.items():
         # Track metrics for [END] block
@@ -52,7 +56,7 @@ def run_baseline():
         success = False
         
         # START block: [START] task=<task_name> env=<benchmark> model=<model_name>
-        print(f"[START] task={task_id} env=data-cleaning model={MODEL_NAME}", flush=True)
+        print(f"[START] task={task_id} env=data-cleaning model={model_name}", flush=True)
         sys.stdout.flush()
 
         try:
@@ -77,7 +81,7 @@ Output a JSON action."""
                 try:
                     print(f"DEBUG: step {step_num} - about to call OpenAI", file=sys.stderr)
                     response = client.chat.completions.create(
-                        model=MODEL_NAME,
+                        model=model_name,
                         temperature=0.0,
                         messages=[
                             {"role": "system", "content": SYSTEM_PROMPT},
@@ -160,7 +164,7 @@ def main():
         print("DEBUG: imports successful", file=sys.stderr)
         print("DEBUG: about to call run_baseline()", file=sys.stderr)
         
-        run_baseline()
+        run_baseline(API_KEY, API_BASE_URL, MODEL_NAME)
         
     except Exception as e:
         # Ensure we always print an [END] block even on fatal errors
