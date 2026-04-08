@@ -5,16 +5,14 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 # Environment variable configuration per guidelines
-API_BASE_URL = os.getenv("API_BASE_URL", "https://api.openai.com/v1")
-MODEL_NAME = os.getenv("MODEL_NAME", "gpt-4.1-mini")
-API_KEY = os.getenv("API_KEY")
+# Always read directly from os.environ with defaults as fallback
+API_BASE_URL = os.environ.get("API_BASE_URL", "https://api.openai.com/v1")
+MODEL_NAME = os.environ.get("MODEL_NAME", "gpt-4.1-mini")
+API_KEY = os.environ.get("API_KEY")
 
 # Validate required env vars
 if API_KEY is None:
     raise ValueError("API_KEY environment variable is required")
-if "API_BASE_URL" not in os.environ:
-    # Ensure API_BASE_URL is in os.environ for direct access
-    os.environ["API_BASE_URL"] = API_BASE_URL
 
 # Import heavy dependencies after env vars are set
 try:
@@ -48,6 +46,10 @@ def run_baseline():
     client = None
     client_error = None
     try:
+        # Debug: verify env vars are set
+        api_base = os.environ.get("API_BASE_URL", "NOT_SET")
+        api_key = os.environ.get("API_KEY", "NOT_SET")
+        
         client = OpenAI(
             base_url=os.environ["API_BASE_URL"],
             api_key=os.environ["API_KEY"],
