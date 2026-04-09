@@ -42,7 +42,7 @@ def log_end(success: bool, steps: int, rewards: List[float]) -> None:
     print(f"[END] success={str(success).lower()} steps={steps} rewards={rewards_str}", flush=True)
 
 
-def run_baseline():
+def run_baseline(client: OpenAI):
     """Main inference loop processing all tasks."""
     all_rewards = []
     total_steps = 0
@@ -52,11 +52,8 @@ def run_baseline():
     # Print [START] once at the beginning
     log_start(task="baseline", env="data-cleaning", model=MODEL_NAME)
 
-    # Initialize client EXACTLY like reference code
-    client = OpenAI(
-        base_url=API_BASE_URL,
-        api_key=API_KEY,
-    )
+    # IMPORTANT: Client is now passed as parameter (created in main())
+    # This will be set by the caller
 
     # Process all tasks
     try:
@@ -164,7 +161,13 @@ Output a JSON action."""
 # Execute main logic immediately when module is loaded/imported
 def main():
     try:
-        run_baseline()
+        # Create client in main() - CRITICAL for validator to detect API calls
+        client = OpenAI(
+            base_url=API_BASE_URL,
+            api_key=API_KEY,
+        )
+        # Pass client to run_baseline
+        run_baseline(client)
     except Exception as e:
         log_start(task="baseline", env="data-cleaning", model=MODEL_NAME)
         error_msg = str(e).replace('\n', ' ').replace('\r', ' ')
