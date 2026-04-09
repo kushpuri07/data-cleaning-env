@@ -48,11 +48,8 @@ def run_baseline(client: OpenAI):
     success = False
     env = None
     
-    # Print [START] once at the beginning
-    log_start(task="baseline", env="data-cleaning", model=MODEL_NAME)
-
     # IMPORTANT: Client is now passed as parameter (created in main())
-    # This will be set by the caller
+    # [START] is already logged in main()
 
     # Process all tasks
     try:
@@ -160,18 +157,28 @@ Output a JSON action."""
 # Execute main logic immediately when module is loaded/imported
 def main():
     try:
+        # Print START first, before anything else
+        log_start(task="baseline", env="data-cleaning", model=MODEL_NAME)
+        
         # Create client in main() - CRITICAL for validator to detect API calls
         # VALIDATOR REQUIREMENT: Use os.environ["..."] with bracket access, NOT os.getenv()
-        client = OpenAI(
-            base_url=os.environ["API_BASE_URL"],
-            api_key=os.environ["API_KEY"],
-        )
+        try:
+            client = OpenAI(
+                base_url=os.environ["API_BASE_URL"],
+                api_key=os.environ["API_KEY"],
+            )
+        except KeyError as ke:
+            # If env vars not set, still try with defaults
+            log_step(step=0, action="none", reward=0.00, done=True, error=f"Missing env var: {ke}")
+            log_end(success=False, steps=1, rewards=[0.00])
+            return
+        
         # Pass client to run_baseline
         run_baseline(client)
     except Exception as e:
-        log_start(task="baseline", env="data-cleaning", model=MODEL_NAME)
         error_msg = str(e).replace('\n', ' ').replace('\r', ' ')
-        log_end(success=False, steps=0, rewards=[])
+        log_step(step=0, action="none", reward=0.00, done=True, error=error_msg)
+        log_end(success=False, steps=1, rewards=[0.00])
 
 
 # Run immediately when imported/executed
