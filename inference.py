@@ -1,33 +1,41 @@
 import os
 import json
 import sys
+from typing import List, Optional
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-# Environment variable configuration per guidelines
-# Always read directly from os.environ with defaults as fallback
+from openai import OpenAI
+from models import Action, BaselineResult
+from environment import DataCleaningEnv
+from tasks import TASKS, run_grader
+
+# Configuration - read from environment
 API_BASE_URL = os.environ.get("API_BASE_URL", "https://api.openai.com/v1")
 MODEL_NAME = os.environ.get("MODEL_NAME", "gpt-4.1-mini")
-API_KEY = os.environ.get("API_KEY")
-
-# Note: Don't validate API_KEY here - let the client init handle it
-# This allows the validator to inject credentials at runtime
-
-# Import heavy dependencies after env vars are set
-try:
-    from openai import OpenAI
-    from models import Action, BaselineResult
-    from environment import DataCleaningEnv
-    from tasks import TASKS, run_grader
-    IMPORTS_OK = True
-except ImportError as e:
-    IMPORTS_OK = False
-    IMPORT_ERROR = str(e)
 
 
 SYSTEM_PROMPT = """You are a data cleaning agent. Output ONLY a raw JSON action object.
 Available action_types: fill_null, drop_duplicates, fix_dtype, normalize_str, drop_outliers, fix_foreign_key, fix_encoding, done
 JSON format: {"action_type": "...", "column": "...", "fill_value": "...", "target_dtype": "...", "normalize_map": {}, "reference_table": "...", "reference_column": "...", "z_threshold": 3.0}"""
+
+
+def log_start(task: str, env: str, model: str) -> None:
+    """Log task start."""
+    print(f"[START] task={task} env={env} model={model}", flush=True)
+
+
+def log_step(step: int, action: str, reward: float, done: bool, error: Optional[str]) -> None:
+    """Log a single step."""
+    error_val = error if error else "null"
+    done_val = str(done).lower()
+    print(f"[STEP] step={step} action={action} reward={reward:.2f} done={done_val} error={error_val}", flush=True)
+
+
+def log_end(success: bool, steps: int, rewards: List[float]) -> None:
+    """Log task end."""
+    rewards_str = ",".join(f"{r:.2f}" for r in rewards)
+    print(f"[END] success={str(success).lower()} steps={steps} rewards={rewards_str}", flush=True)
 
 
 def run_baseline():
@@ -38,23 +46,13 @@ def run_baseline():
     env = None
     
     # Print [START] once at the beginning
-    print(f"[START] task=baseline env=data-cleaning model={MODEL_NAME}", flush=True)
-    sys.stdout.flush()
+    log_start(task="baseline", env="data-cleaning", model=MODEL_NAME)
 
-    # Try to initialize client
-    client = None
-    try:
-        client = OpenAI(
-            base_url=API_BASE_URL,
-            api_key=API_KEY,
-        )
-    except Exception as e:
-        error_msg = str(e).replace('\n', ' ').replace('\r', ' ')
-        print(f"[STEP] step=0 action=none reward=0.00 done=true error={error_msg}", flush=True)
-        sys.stdout.flush()
-        print(f"[END] success=false steps=1 rewards=0.00", flush=True)
-        sys.stdout.flush()
-        return
+    # Initialize client with direct os.environ access (required by validator)
+    client = OpenAI(
+        base_url=os.environ["API_BASE_URL"],
+        api_key=os.environ["API_KEY"],
+    )
 
     # Process all tasks
     try:
@@ -95,9 +93,7 @@ Output a JSON action."""
                         last_error = None
                     except Exception as e:
                         last_error = str(e).replace('\n', ' ').replace('\r', ' ')
-                        error_field = last_error if last_error else "null"
-                        print(f"[STEP] step={step_num} action=none reward=0.00 done=true error={error_field}", flush=True)
-                        sys.stdout.flush()
+                        log_step(step=step_num, action="none", reward=0.00, done=True, error=last_error)
                         task_rewards.append(0.00)
                         task_steps = step_num + 1
                         break
@@ -120,8 +116,7 @@ Output a JSON action."""
                         done = False
 
                     error_field = last_error if last_error else "null"
-                    print(f"[STEP] step={step_num} action={action_str} reward={reward_value:.2f} done={'true' if done else 'false'} error={error_field}", flush=True)
-                    sys.stdout.flush()
+                    log_step(step=step_num, action=action_str, reward=reward_value, done=done, error=last_error)
 
                     task_rewards.append(reward_value)
                     task_steps = step_num + 1
@@ -141,8 +136,7 @@ Output a JSON action."""
 
             except Exception as e:
                 error_msg = str(e).replace('\n', ' ').replace('\r', ' ')
-                print(f"[STEP] step=0 action=none reward=0.00 done=true error={error_msg}", flush=True)
-                sys.stdout.flush()
+                log_step(step=0, action="none", reward=0.00, done=True, error=error_msg)
                 task_rewards.append(0.00)
                 task_steps = 1
             finally:
@@ -160,9 +154,7 @@ Output a JSON action."""
         success = False
     finally:
         # Print [END] once at the end
-        rewards_str = ",".join(f"{r:.2f}" for r in all_rewards)
-        print(f"[END] success={'true' if success else 'false'} steps={total_steps} rewards={rewards_str}", flush=True)
-        sys.stdout.flush()
+        log_end(success=success, steps=total_steps, rewards=all_rewards)
 
 
 # Execute main logic immediately when module is loaded/imported
@@ -170,10 +162,9 @@ def main():
     try:
         run_baseline()
     except Exception as e:
-        print(f"[START] task=error env=data-cleaning model={MODEL_NAME}", flush=True)
-        sys.stdout.flush()
-        print(f"[END] success=false steps=0 rewards=", flush=True)
-        sys.stdout.flush()
+        log_start(task="baseline", env="data-cleaning", model=MODEL_NAME)
+        error_msg = str(e).replace('\n', ' ').replace('\r', ' ')
+        log_end(success=False, steps=0, rewards=[])
 
 
 # Run immediately when imported/executed
