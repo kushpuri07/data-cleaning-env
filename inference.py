@@ -5,14 +5,18 @@ from typing import List, Optional
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
+from dotenv import load_dotenv
+load_dotenv()
+
 from openai import OpenAI
 from models import Action, BaselineResult
 from environment import DataCleaningEnv
 from tasks import TASKS, run_grader
 
-# Configuration - read from environment
-API_BASE_URL = os.environ.get("API_BASE_URL", "https://api.openai.com/v1")
-MODEL_NAME = os.environ.get("MODEL_NAME", "gpt-4.1-mini")
+# Configuration - EXACTLY like the reference code
+API_KEY = os.getenv("API_KEY") or os.getenv("HF_TOKEN")
+API_BASE_URL = os.getenv("API_BASE_URL", "https://api.openai.com/v1")
+MODEL_NAME = os.getenv("MODEL_NAME", "gpt-4.1-mini")
 
 
 SYSTEM_PROMPT = """You are a data cleaning agent. Output ONLY a raw JSON action object.
@@ -48,10 +52,10 @@ def run_baseline():
     # Print [START] once at the beginning
     log_start(task="baseline", env="data-cleaning", model=MODEL_NAME)
 
-    # Initialize client with direct os.environ access (required by validator)
+    # Initialize client EXACTLY like reference code
     client = OpenAI(
-        base_url=os.environ["API_BASE_URL"],
-        api_key=os.environ["API_KEY"],
+        base_url=API_BASE_URL,
+        api_key=API_KEY,
     )
 
     # Process all tasks
